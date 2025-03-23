@@ -1,351 +1,441 @@
-import type { Express, Request, Response } from "express";
+import express, { Router, type Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { 
   insertMedicationSchema, 
-  insertCustomerSchema, 
   insertSupplierSchema, 
-  insertOrderSchema,
-  insertOrderItemSchema
+  insertCustomerSchema, 
+  insertOrderSchema, 
+  insertOrderItemSchema,
+  insertSupplyOrderSchema,
+  insertSupplyOrderItemSchema,
+  insertUserSchema
 } from "@shared/schema";
 import { z } from "zod";
+import { fromZodError } from "zod-validation-error";
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // API routes - all prefixed with /api
+  const apiRouter = Router();
   
-  // Dashboard stats
-  app.get('/api/dashboard/stats', async (req: Request, res: Response) => {
+  // Middleware to handle validation errors
+  const validateRequest = (schema: z.ZodSchema<any>) => (
+    req: express.Request,
+    res: express.Response,
+    next: express.NextFunction
+  ) => {
+    try {
+      req.body = schema.parse(req.body);
+      next();
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        const validationError = fromZodError(error);
+        return res.status(400).json({ message: validationError.message });
+      }
+      return res.status(500).json({ message: "Internal server error during validation" });
+    }
+  };
+
+  // Dashboard
+  apiRouter.get("/dashboard/stats", async (req, res) => {
     try {
       const stats = await storage.getDashboardStats();
       res.json(stats);
     } catch (error) {
-      res.status(500).json({ message: 'Failed to fetch dashboard stats' });
+      res.status(500).json({ message: "Failed to fetch dashboard statistics" });
     }
   });
-  
-  // Medication routes
-  app.get('/api/medications', async (req: Request, res: Response) => {
+
+  // Medications
+  apiRouter.get("/medications", async (req, res) => {
     try {
       const medications = await storage.getMedications();
       res.json(medications);
     } catch (error) {
-      res.status(500).json({ message: 'Failed to fetch medications' });
+      res.status(500).json({ message: "Failed to fetch medications" });
     }
   });
-  
-  app.get('/api/medications/low-stock', async (req: Request, res: Response) => {
+
+  apiRouter.get("/medications/low-stock", async (req, res) => {
     try {
-      const lowStockMedications = await storage.getLowStockMedications();
-      res.json(lowStockMedications);
+      const medications = await storage.getLowStockMedications();
+      res.json(medications);
     } catch (error) {
-      res.status(500).json({ message: 'Failed to fetch low stock medications' });
+      res.status(500).json({ message: "Failed to fetch low stock medications" });
     }
   });
-  
-  app.get('/api/medications/:id', async (req: Request, res: Response) => {
+
+  apiRouter.get("/medications/search", async (req, res) => {
+    try {
+      const query = req.query.q as string || "";
+      const medications = await storage.searchMedications(query);
+      res.json(medications);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to search medications" });
+    }
+  });
+
+  apiRouter.get("/medications/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       const medication = await storage.getMedication(id);
-      
       if (!medication) {
-        return res.status(404).json({ message: 'Medication not found' });
+        return res.status(404).json({ message: "Medication not found" });
       }
-      
       res.json(medication);
     } catch (error) {
-      res.status(500).json({ message: 'Failed to fetch medication' });
+      res.status(500).json({ message: "Failed to fetch medication" });
     }
   });
-  
-  app.post('/api/medications', async (req: Request, res: Response) => {
+
+  apiRouter.post("/medications", validateRequest(insertMedicationSchema), async (req, res) => {
     try {
-      const validatedData = insertMedicationSchema.parse(req.body);
-      const newMedication = await storage.createMedication(validatedData);
-      res.status(201).json(newMedication);
+      const medication = await storage.createMedication(req.body);
+      res.status(201).json(medication);
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ message: 'Invalid medication data', errors: error.errors });
-      }
-      res.status(500).json({ message: 'Failed to create medication' });
+      res.status(500).json({ message: "Failed to create medication" });
     }
   });
-  
-  app.put('/api/medications/:id', async (req: Request, res: Response) => {
+
+  apiRouter.put("/medications/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
-      const validatedData = insertMedicationSchema.partial().parse(req.body);
-      
-      const updatedMedication = await storage.updateMedication(id, validatedData);
-      
-      if (!updatedMedication) {
-        return res.status(404).json({ message: 'Medication not found' });
+      const medication = await storage.updateMedication(id, req.body);
+      if (!medication) {
+        return res.status(404).json({ message: "Medication not found" });
       }
-      
-      res.json(updatedMedication);
+      res.json(medication);
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ message: 'Invalid medication data', errors: error.errors });
-      }
-      res.status(500).json({ message: 'Failed to update medication' });
+      res.status(500).json({ message: "Failed to update medication" });
     }
   });
-  
-  app.delete('/api/medications/:id', async (req: Request, res: Response) => {
+
+  apiRouter.delete("/medications/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       const success = await storage.deleteMedication(id);
-      
       if (!success) {
-        return res.status(404).json({ message: 'Medication not found' });
+        return res.status(404).json({ message: "Medication not found" });
       }
-      
       res.status(204).end();
     } catch (error) {
-      res.status(500).json({ message: 'Failed to delete medication' });
+      res.status(500).json({ message: "Failed to delete medication" });
     }
   });
-  
-  // Customer routes
-  app.get('/api/customers', async (req: Request, res: Response) => {
-    try {
-      const customers = await storage.getCustomers();
-      res.json(customers);
-    } catch (error) {
-      res.status(500).json({ message: 'Failed to fetch customers' });
-    }
-  });
-  
-  app.get('/api/customers/:id', async (req: Request, res: Response) => {
-    try {
-      const id = parseInt(req.params.id);
-      const customer = await storage.getCustomer(id);
-      
-      if (!customer) {
-        return res.status(404).json({ message: 'Customer not found' });
-      }
-      
-      res.json(customer);
-    } catch (error) {
-      res.status(500).json({ message: 'Failed to fetch customer' });
-    }
-  });
-  
-  app.post('/api/customers', async (req: Request, res: Response) => {
-    try {
-      const validatedData = insertCustomerSchema.parse(req.body);
-      const newCustomer = await storage.createCustomer(validatedData);
-      res.status(201).json(newCustomer);
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ message: 'Invalid customer data', errors: error.errors });
-      }
-      res.status(500).json({ message: 'Failed to create customer' });
-    }
-  });
-  
-  app.put('/api/customers/:id', async (req: Request, res: Response) => {
-    try {
-      const id = parseInt(req.params.id);
-      const validatedData = insertCustomerSchema.partial().parse(req.body);
-      
-      const updatedCustomer = await storage.updateCustomer(id, validatedData);
-      
-      if (!updatedCustomer) {
-        return res.status(404).json({ message: 'Customer not found' });
-      }
-      
-      res.json(updatedCustomer);
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ message: 'Invalid customer data', errors: error.errors });
-      }
-      res.status(500).json({ message: 'Failed to update customer' });
-    }
-  });
-  
-  app.delete('/api/customers/:id', async (req: Request, res: Response) => {
-    try {
-      const id = parseInt(req.params.id);
-      const success = await storage.deleteCustomer(id);
-      
-      if (!success) {
-        return res.status(404).json({ message: 'Customer not found' });
-      }
-      
-      res.status(204).end();
-    } catch (error) {
-      res.status(500).json({ message: 'Failed to delete customer' });
-    }
-  });
-  
-  // Supplier routes
-  app.get('/api/suppliers', async (req: Request, res: Response) => {
+
+  // Suppliers
+  apiRouter.get("/suppliers", async (req, res) => {
     try {
       const suppliers = await storage.getSuppliers();
       res.json(suppliers);
     } catch (error) {
-      res.status(500).json({ message: 'Failed to fetch suppliers' });
+      res.status(500).json({ message: "Failed to fetch suppliers" });
     }
   });
-  
-  app.get('/api/suppliers/:id', async (req: Request, res: Response) => {
+
+  apiRouter.get("/suppliers/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       const supplier = await storage.getSupplier(id);
-      
       if (!supplier) {
-        return res.status(404).json({ message: 'Supplier not found' });
+        return res.status(404).json({ message: "Supplier not found" });
       }
-      
       res.json(supplier);
     } catch (error) {
-      res.status(500).json({ message: 'Failed to fetch supplier' });
+      res.status(500).json({ message: "Failed to fetch supplier" });
     }
   });
-  
-  app.post('/api/suppliers', async (req: Request, res: Response) => {
+
+  apiRouter.post("/suppliers", validateRequest(insertSupplierSchema), async (req, res) => {
     try {
-      const validatedData = insertSupplierSchema.parse(req.body);
-      const newSupplier = await storage.createSupplier(validatedData);
-      res.status(201).json(newSupplier);
+      const supplier = await storage.createSupplier(req.body);
+      res.status(201).json(supplier);
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ message: 'Invalid supplier data', errors: error.errors });
-      }
-      res.status(500).json({ message: 'Failed to create supplier' });
+      res.status(500).json({ message: "Failed to create supplier" });
     }
   });
-  
-  app.put('/api/suppliers/:id', async (req: Request, res: Response) => {
+
+  apiRouter.put("/suppliers/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
-      const validatedData = insertSupplierSchema.partial().parse(req.body);
-      
-      const updatedSupplier = await storage.updateSupplier(id, validatedData);
-      
-      if (!updatedSupplier) {
-        return res.status(404).json({ message: 'Supplier not found' });
+      const supplier = await storage.updateSupplier(id, req.body);
+      if (!supplier) {
+        return res.status(404).json({ message: "Supplier not found" });
       }
-      
-      res.json(updatedSupplier);
+      res.json(supplier);
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ message: 'Invalid supplier data', errors: error.errors });
-      }
-      res.status(500).json({ message: 'Failed to update supplier' });
+      res.status(500).json({ message: "Failed to update supplier" });
     }
   });
-  
-  app.delete('/api/suppliers/:id', async (req: Request, res: Response) => {
+
+  apiRouter.delete("/suppliers/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       const success = await storage.deleteSupplier(id);
-      
       if (!success) {
-        return res.status(404).json({ message: 'Supplier not found' });
+        return res.status(404).json({ message: "Supplier not found" });
       }
-      
       res.status(204).end();
     } catch (error) {
-      res.status(500).json({ message: 'Failed to delete supplier' });
+      res.status(500).json({ message: "Failed to delete supplier" });
     }
   });
-  
-  // Order routes
-  app.get('/api/orders', async (req: Request, res: Response) => {
+
+  // Customers
+  apiRouter.get("/customers", async (req, res) => {
+    try {
+      const customers = await storage.getCustomers();
+      res.json(customers);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch customers" });
+    }
+  });
+
+  apiRouter.get("/customers/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const customer = await storage.getCustomer(id);
+      if (!customer) {
+        return res.status(404).json({ message: "Customer not found" });
+      }
+      res.json(customer);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch customer" });
+    }
+  });
+
+  apiRouter.post("/customers", validateRequest(insertCustomerSchema), async (req, res) => {
+    try {
+      const customer = await storage.createCustomer(req.body);
+      res.status(201).json(customer);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to create customer" });
+    }
+  });
+
+  apiRouter.put("/customers/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const customer = await storage.updateCustomer(id, req.body);
+      if (!customer) {
+        return res.status(404).json({ message: "Customer not found" });
+      }
+      res.json(customer);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to update customer" });
+    }
+  });
+
+  apiRouter.delete("/customers/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const success = await storage.deleteCustomer(id);
+      if (!success) {
+        return res.status(404).json({ message: "Customer not found" });
+      }
+      res.status(204).end();
+    } catch (error) {
+      res.status(500).json({ message: "Failed to delete customer" });
+    }
+  });
+
+  // Orders
+  apiRouter.get("/orders", async (req, res) => {
     try {
       const orders = await storage.getOrders();
       res.json(orders);
     } catch (error) {
-      res.status(500).json({ message: 'Failed to fetch orders' });
+      res.status(500).json({ message: "Failed to fetch orders" });
     }
   });
-  
-  app.get('/api/orders/recent', async (req: Request, res: Response) => {
+
+  apiRouter.get("/orders/recent", async (req, res) => {
     try {
-      const limit = parseInt(req.query.limit as string) || 5;
-      const recentOrders = await storage.getRecentOrders(limit);
-      res.json(recentOrders);
+      const limit = parseInt(req.query.limit as string || "5");
+      const orders = await storage.getRecentOrders(limit);
+      res.json(orders);
     } catch (error) {
-      res.status(500).json({ message: 'Failed to fetch recent orders' });
+      res.status(500).json({ message: "Failed to fetch recent orders" });
     }
   });
-  
-  app.get('/api/orders/:id', async (req: Request, res: Response) => {
+
+  apiRouter.get("/orders/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
-      const order = await storage.getOrderWithItems(id);
+      const orderWithItems = await storage.getOrderWithItems(id);
+      if (!orderWithItems) {
+        return res.status(404).json({ message: "Order not found" });
+      }
+      res.json(orderWithItems);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch order" });
+    }
+  });
+
+  apiRouter.post("/orders", async (req, res) => {
+    try {
+      const { order, items } = req.body;
+      const validatedOrder = insertOrderSchema.parse(order);
+      const validatedItems = items.map((item: any) => insertOrderItemSchema.parse(item));
       
+      const newOrder = await storage.createOrder(validatedOrder, validatedItems);
+      res.status(201).json(newOrder);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        const validationError = fromZodError(error);
+        return res.status(400).json({ message: validationError.message });
+      }
+      res.status(500).json({ message: "Failed to create order" });
+    }
+  });
+
+  apiRouter.patch("/orders/:id/status", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const status = req.body.status;
+      
+      if (!['pending', 'processing', 'completed', 'cancelled'].includes(status)) {
+        return res.status(400).json({ message: "Invalid status" });
+      }
+      
+      const order = await storage.updateOrderStatus(id, status);
       if (!order) {
-        return res.status(404).json({ message: 'Order not found' });
+        return res.status(404).json({ message: "Order not found" });
       }
       
       res.json(order);
     } catch (error) {
-      res.status(500).json({ message: 'Failed to fetch order' });
+      res.status(500).json({ message: "Failed to update order status" });
     }
   });
-  
-  app.post('/api/orders', async (req: Request, res: Response) => {
-    try {
-      const orderSchema = insertOrderSchema.parse(req.body.order);
-      const orderItemsSchema = z.array(insertOrderItemSchema).parse(req.body.orderItems);
-      
-      const newOrder = await storage.createOrder(orderSchema, orderItemsSchema);
-      res.status(201).json(newOrder);
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ message: 'Invalid order data', errors: error.errors });
-      }
-      res.status(500).json({ message: 'Failed to create order' });
-    }
-  });
-  
-  app.put('/api/orders/:id/status', async (req: Request, res: Response) => {
-    try {
-      const id = parseInt(req.params.id);
-      const statusSchema = z.object({ status: z.string() });
-      const { status } = statusSchema.parse(req.body);
-      
-      const updatedOrder = await storage.updateOrderStatus(id, status);
-      
-      if (!updatedOrder) {
-        return res.status(404).json({ message: 'Order not found' });
-      }
-      
-      res.json(updatedOrder);
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ message: 'Invalid status data', errors: error.errors });
-      }
-      res.status(500).json({ message: 'Failed to update order status' });
-    }
-  });
-  
-  app.get('/api/orders/customer/:id', async (req: Request, res: Response) => {
-    try {
-      const customerId = parseInt(req.params.id);
-      const orders = await storage.getOrdersByCustomer(customerId);
-      res.json(orders);
-    } catch (error) {
-      res.status(500).json({ message: 'Failed to fetch customer orders' });
-    }
-  });
-  
-  app.delete('/api/orders/:id', async (req: Request, res: Response) => {
+
+  apiRouter.delete("/orders/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       const success = await storage.deleteOrder(id);
-      
       if (!success) {
-        return res.status(404).json({ message: 'Order not found' });
+        return res.status(404).json({ message: "Order not found" });
       }
-      
       res.status(204).end();
     } catch (error) {
-      res.status(500).json({ message: 'Failed to delete order' });
+      res.status(500).json({ message: "Failed to delete order" });
     }
   });
+
+  // Supply Orders
+  apiRouter.get("/supply-orders", async (req, res) => {
+    try {
+      const orders = await storage.getSupplyOrders();
+      res.json(orders);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch supply orders" });
+    }
+  });
+
+  apiRouter.get("/supply-orders/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const orderWithItems = await storage.getSupplyOrderWithItems(id);
+      if (!orderWithItems) {
+        return res.status(404).json({ message: "Supply order not found" });
+      }
+      res.json(orderWithItems);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch supply order" });
+    }
+  });
+
+  apiRouter.post("/supply-orders", async (req, res) => {
+    try {
+      const { order, items } = req.body;
+      const validatedOrder = insertSupplyOrderSchema.parse(order);
+      const validatedItems = items.map((item: any) => insertSupplyOrderItemSchema.parse(item));
+      
+      const newOrder = await storage.createSupplyOrder(validatedOrder, validatedItems);
+      res.status(201).json(newOrder);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        const validationError = fromZodError(error);
+        return res.status(400).json({ message: validationError.message });
+      }
+      res.status(500).json({ message: "Failed to create supply order" });
+    }
+  });
+
+  apiRouter.patch("/supply-orders/:id/status", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const status = req.body.status;
+      
+      if (!['pending', 'ordered', 'received', 'cancelled'].includes(status)) {
+        return res.status(400).json({ message: "Invalid status" });
+      }
+      
+      const order = await storage.updateSupplyOrderStatus(id, status);
+      if (!order) {
+        return res.status(404).json({ message: "Supply order not found" });
+      }
+      
+      res.json(order);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to update supply order status" });
+    }
+  });
+
+  apiRouter.delete("/supply-orders/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const success = await storage.deleteSupplyOrder(id);
+      if (!success) {
+        return res.status(404).json({ message: "Supply order not found" });
+      }
+      res.status(204).end();
+    } catch (error) {
+      res.status(500).json({ message: "Failed to delete supply order" });
+    }
+  });
+
+  // Users - Basic auth and user management
+  apiRouter.get("/users", async (req, res) => {
+    try {
+      const users = await storage.getUsers();
+      res.json(users.map(user => {
+        // Remove password from response
+        const { password, ...userWithoutPassword } = user;
+        return userWithoutPassword;
+      }));
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch users" });
+    }
+  });
+
+  apiRouter.post("/users", validateRequest(insertUserSchema), async (req, res) => {
+    try {
+      const user = await storage.createUser(req.body);
+      const { password, ...userWithoutPassword } = user;
+      res.status(201).json(userWithoutPassword);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to create user" });
+    }
+  });
+
+  apiRouter.post("/auth/login", async (req, res) => {
+    try {
+      const { username, password } = req.body;
+      const user = await storage.getUserByUsername(username);
+
+      if (!user || user.password !== password) {
+        return res.status(401).json({ message: "Invalid credentials" });
+      }
+
+      const { password: _, ...userWithoutPassword } = user;
+      res.json({ user: userWithoutPassword });
+    } catch (error) {
+      res.status(500).json({ message: "Login failed" });
+    }
+  });
+
+  // Register API routes
+  app.use("/api", apiRouter);
 
   const httpServer = createServer(app);
   return httpServer;
