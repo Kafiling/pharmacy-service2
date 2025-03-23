@@ -35,7 +35,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -55,7 +55,13 @@ const orderFormSchema = z.object({
     id: z.number(),
     quantity: z.number().min(1, "Quantity must be at least 1"),
   }),
-  timingSchedule: z.enum(["morning", "afternoon", "evening", "multiple"]),
+  timingSchedule: z.object({
+    morning: z.boolean().default(false),
+    afternoon: z.boolean().default(false),
+    evening: z.boolean().default(false),
+    beforeBed: z.boolean().default(false),
+  }),
+  dosage: z.number().min(1, "Dosage must be at least 1").default(1),
   notes: z.string().optional(),
 });
 
@@ -82,13 +88,24 @@ const NewOrderModal = ({ isOpen, onClose }: NewOrderModalProps) => {
       
       const totalAmount = parseFloat(selectedMedication.price.toString()) * data.medication.quantity;
       
+      // Format timing schedule for notes
+      const timingEntries = [];
+      if (data.timingSchedule.morning) timingEntries.push("Morning");
+      if (data.timingSchedule.afternoon) timingEntries.push("Afternoon");
+      if (data.timingSchedule.evening) timingEntries.push("Evening");
+      if (data.timingSchedule.beforeBed) timingEntries.push("Before Bed");
+      
+      const timingString = timingEntries.length > 0 
+        ? `Timing: ${timingEntries.join(", ")}`
+        : "Timing: Not specified";
+        
       const orderData = {
         order: {
           customerId: data.customerId,
           totalAmount: totalAmount,
           status: "pending",
           orderNumber: `ORD-${Math.floor(Math.random() * 10000)}`,
-          notes: `Timing: ${data.timingSchedule}${data.notes ? `. ${data.notes}` : ''}`,
+          notes: `${timingString}. Dosage: ${data.dosage} per intake${data.notes ? `. ${data.notes}` : ''}`,
         },
         items: [
           {
@@ -128,7 +145,13 @@ const NewOrderModal = ({ isOpen, onClose }: NewOrderModalProps) => {
     defaultValues: {
       customerId: 0,
       medication: { id: 0, quantity: 1 },
-      timingSchedule: "morning",
+      timingSchedule: {
+        morning: false,
+        afternoon: false,
+        evening: false,
+        beforeBed: false,
+      },
+      dosage: 1,
       notes: "",
     },
   });
@@ -282,51 +305,85 @@ const NewOrderModal = ({ isOpen, onClose }: NewOrderModalProps) => {
               )}
             />
 
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="timingSchedule.morning"
+                render={({ field }) => (
+                  <FormItem className="flex items-center space-x-2">
+                    <FormControl>
+                      <Checkbox
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                    <FormLabel className="font-normal">Morning</FormLabel>
+                  </FormItem>
+                )}
+              />
+              
+              <FormField
+                control={form.control}
+                name="timingSchedule.afternoon"
+                render={({ field }) => (
+                  <FormItem className="flex items-center space-x-2">
+                    <FormControl>
+                      <Checkbox
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                    <FormLabel className="font-normal">Afternoon</FormLabel>
+                  </FormItem>
+                )}
+              />
+              
+              <FormField
+                control={form.control}
+                name="timingSchedule.evening"
+                render={({ field }) => (
+                  <FormItem className="flex items-center space-x-2">
+                    <FormControl>
+                      <Checkbox
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                    <FormLabel className="font-normal">Evening</FormLabel>
+                  </FormItem>
+                )}
+              />
+              
+              <FormField
+                control={form.control}
+                name="timingSchedule.beforeBed"
+                render={({ field }) => (
+                  <FormItem className="flex items-center space-x-2">
+                    <FormControl>
+                      <Checkbox
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                    <FormLabel className="font-normal">Before Bed</FormLabel>
+                  </FormItem>
+                )}
+              />
+            </div>
+            
             <FormField
               control={form.control}
-              name="timingSchedule"
+              name="dosage"
               render={({ field }) => (
-                <FormItem className="space-y-3">
-                  <FormLabel>Medication Timing</FormLabel>
+                <FormItem>
+                  <FormLabel>Dosage (pills per intake)</FormLabel>
                   <FormControl>
-                    <RadioGroup
-                      onValueChange={field.onChange}
-                      defaultValue={field.value}
-                      className="flex flex-col space-y-1"
-                    >
-                      <FormItem className="flex items-center space-x-3 space-y-0">
-                        <FormControl>
-                          <RadioGroupItem value="morning" />
-                        </FormControl>
-                        <FormLabel className="font-normal">
-                          Morning
-                        </FormLabel>
-                      </FormItem>
-                      <FormItem className="flex items-center space-x-3 space-y-0">
-                        <FormControl>
-                          <RadioGroupItem value="afternoon" />
-                        </FormControl>
-                        <FormLabel className="font-normal">
-                          Afternoon
-                        </FormLabel>
-                      </FormItem>
-                      <FormItem className="flex items-center space-x-3 space-y-0">
-                        <FormControl>
-                          <RadioGroupItem value="evening" />
-                        </FormControl>
-                        <FormLabel className="font-normal">
-                          Evening
-                        </FormLabel>
-                      </FormItem>
-                      <FormItem className="flex items-center space-x-3 space-y-0">
-                        <FormControl>
-                          <RadioGroupItem value="multiple" />
-                        </FormControl>
-                        <FormLabel className="font-normal">
-                          Multiple times per day
-                        </FormLabel>
-                      </FormItem>
-                    </RadioGroup>
+                    <Input
+                      type="number"
+                      min="1"
+                      {...field}
+                      onChange={(e) => field.onChange(parseInt(e.target.value))}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
