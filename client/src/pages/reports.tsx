@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { DashboardStats, Medication, Order } from '@shared/schema';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -49,7 +49,7 @@ export default function Reports() {
   });
 
   // Calculate medication category data for pie chart
-  const categoryData = React.useMemo(() => {
+  const categoryData = useMemo(() => {
     if (!medications) return [];
     
     const categories: Record<string, number> = {};
@@ -69,7 +69,7 @@ export default function Reports() {
   }, [medications]);
 
   // Format order data for the bar chart
-  const orderData = React.useMemo(() => {
+  const orderData = useMemo(() => {
     if (!orders) return [];
     
     // Group by date and sum amounts
