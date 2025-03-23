@@ -56,7 +56,7 @@ export default function InventoryTable({ medications, isLoading, onEdit }: Inven
   const getMedicationIcon = (category: string) => {
     switch (category) {
       case 'antibiotic':
-        return <Capsule className="text-primary h-5 w-5" />;
+        return <TestTube className="text-primary h-5 w-5" />;
       case 'analgesic':
         return <Pill className="text-primary h-5 w-5" />;
       default:
@@ -78,9 +78,9 @@ export default function InventoryTable({ medications, isLoading, onEdit }: Inven
     if (medication.currentStock <= 0) {
       return <Badge variant="destructive">Out of Stock</Badge>;
     } else if (medication.currentStock < medication.minimumStock) {
-      return <Badge variant="warning">Low Stock</Badge>;
+      return <Badge variant="secondary">Low Stock</Badge>;
     } else {
-      return <Badge variant="success">In Stock</Badge>;
+      return <Badge variant="outline">In Stock</Badge>;
     }
   };
 

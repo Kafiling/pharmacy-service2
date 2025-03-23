@@ -73,17 +73,14 @@ export function Sidebar({ isMobile, isOpen, onClose }: SidebarProps) {
                 key={item.href}
                 href={item.href}
                 onClick={isMobile ? onClose : undefined}
+                className={`flex items-center px-3 py-2 text-sm font-medium rounded-md ${
+                  isActive
+                    ? "bg-primary-50 text-primary"
+                    : "text-gray-700 hover:bg-gray-100"
+                }`}
               >
-                <a
-                  className={`flex items-center px-3 py-2 text-sm font-medium rounded-md ${
-                    isActive
-                      ? "bg-primary-50 text-primary"
-                      : "text-gray-700 hover:bg-gray-100"
-                  }`}
-                >
-                  {item.icon}
-                  {item.label}
-                </a>
+                {item.icon}
+                {item.label}
               </Link>
             );
           })}
