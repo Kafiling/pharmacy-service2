@@ -162,6 +162,12 @@ export default function Orders() {
           </TabsContent>
         </Tabs>
       )}
+      
+      {/* New Order Modal */}
+      <NewOrderModal 
+        isOpen={showNewOrderModal} 
+        onClose={handleNewOrderModalClose} 
+      />
     </div>
   );
 }
