@@ -23,15 +23,24 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Check, ChevronsUpDown } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Customer, Medication, insertOrderSchema } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 
@@ -46,7 +55,7 @@ const orderFormSchema = z.object({
     id: z.number(),
     quantity: z.number().min(1, "Quantity must be at least 1"),
   }),
-  prescription: z.string().optional(),
+  timingSchedule: z.enum(["morning", "afternoon", "evening", "multiple"]),
   notes: z.string().optional(),
 });
 
@@ -79,7 +88,7 @@ const NewOrderModal = ({ isOpen, onClose }: NewOrderModalProps) => {
           totalAmount: totalAmount,
           status: "pending",
           orderNumber: `ORD-${Math.floor(Math.random() * 10000)}`,
-          notes: data.notes || null,
+          notes: `Timing: ${data.timingSchedule}${data.notes ? `. ${data.notes}` : ''}`,
         },
         items: [
           {
@@ -119,7 +128,7 @@ const NewOrderModal = ({ isOpen, onClose }: NewOrderModalProps) => {
     defaultValues: {
       customerId: 0,
       medication: { id: 0, quantity: 1 },
-      prescription: "",
+      timingSchedule: "morning",
       notes: "",
     },
   });
@@ -144,25 +153,54 @@ const NewOrderModal = ({ isOpen, onClose }: NewOrderModalProps) => {
               control={form.control}
               name="customerId"
               render={({ field }) => (
-                <FormItem>
+                <FormItem className="flex flex-col">
                   <FormLabel>Customer</FormLabel>
-                  <Select
-                    onValueChange={(value) => field.onChange(parseInt(value))}
-                    defaultValue={field.value.toString()}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a customer" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {customers?.map((customer) => (
-                        <SelectItem key={customer.id} value={customer.id.toString()}>
-                          {customer.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <FormControl>
+                        <Button
+                          variant="outline"
+                          role="combobox"
+                          className={cn(
+                            "w-full justify-between",
+                            !field.value && "text-muted-foreground"
+                          )}
+                        >
+                          {field.value && customers
+                            ? customers.find(customer => customer.id === field.value)?.name
+                            : "Select customer"}
+                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </FormControl>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[300px] p-0">
+                      <Command>
+                        <CommandInput placeholder="Search customer..." />
+                        <CommandEmpty>No customer found.</CommandEmpty>
+                        <CommandGroup>
+                          {customers?.map((customer) => (
+                            <CommandItem
+                              key={customer.id}
+                              value={customer.name}
+                              onSelect={() => {
+                                field.onChange(customer.id);
+                              }}
+                            >
+                              <Check
+                                className={cn(
+                                  "mr-2 h-4 w-4",
+                                  customer.id === field.value
+                                    ? "opacity-100"
+                                    : "opacity-0"
+                                )}
+                              />
+                              {customer.name}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
                   <FormMessage />
                 </FormItem>
               )}
@@ -172,25 +210,54 @@ const NewOrderModal = ({ isOpen, onClose }: NewOrderModalProps) => {
               control={form.control}
               name="medication.id"
               render={({ field }) => (
-                <FormItem>
+                <FormItem className="flex flex-col">
                   <FormLabel>Medication</FormLabel>
-                  <Select
-                    onValueChange={(value) => field.onChange(parseInt(value))}
-                    defaultValue={field.value.toString()}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a medication" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {medications?.map((medication) => (
-                        <SelectItem key={medication.id} value={medication.id.toString()}>
-                          {medication.name} ({medication.dosage})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <FormControl>
+                        <Button
+                          variant="outline"
+                          role="combobox"
+                          className={cn(
+                            "w-full justify-between",
+                            !field.value && "text-muted-foreground"
+                          )}
+                        >
+                          {field.value && medications
+                            ? medications.find(med => med.id === field.value)?.name
+                            : "Select medication"}
+                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </FormControl>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[300px] p-0">
+                      <Command>
+                        <CommandInput placeholder="Search medication..." />
+                        <CommandEmpty>No medication found.</CommandEmpty>
+                        <CommandGroup>
+                          {medications?.map((medication) => (
+                            <CommandItem
+                              key={medication.id}
+                              value={medication.name}
+                              onSelect={() => {
+                                field.onChange(medication.id);
+                              }}
+                            >
+                              <Check
+                                className={cn(
+                                  "mr-2 h-4 w-4",
+                                  medication.id === field.value
+                                    ? "opacity-100"
+                                    : "opacity-0"
+                                )}
+                              />
+                              {medication.name} ({medication.dosage})
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
                   <FormMessage />
                 </FormItem>
               )}
@@ -217,25 +284,50 @@ const NewOrderModal = ({ isOpen, onClose }: NewOrderModalProps) => {
 
             <FormField
               control={form.control}
-              name="prescription"
+              name="timingSchedule"
               render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Prescription</FormLabel>
-                  <Select
-                    onValueChange={field.onChange}
-                    defaultValue={field.value}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Prescription type" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="Required - On file">Required - On file</SelectItem>
-                      <SelectItem value="Required - New">Required - New</SelectItem>
-                      <SelectItem value="Not required">Not required</SelectItem>
-                    </SelectContent>
-                  </Select>
+                <FormItem className="space-y-3">
+                  <FormLabel>Medication Timing</FormLabel>
+                  <FormControl>
+                    <RadioGroup
+                      onValueChange={field.onChange}
+                      defaultValue={field.value}
+                      className="flex flex-col space-y-1"
+                    >
+                      <FormItem className="flex items-center space-x-3 space-y-0">
+                        <FormControl>
+                          <RadioGroupItem value="morning" />
+                        </FormControl>
+                        <FormLabel className="font-normal">
+                          Morning
+                        </FormLabel>
+                      </FormItem>
+                      <FormItem className="flex items-center space-x-3 space-y-0">
+                        <FormControl>
+                          <RadioGroupItem value="afternoon" />
+                        </FormControl>
+                        <FormLabel className="font-normal">
+                          Afternoon
+                        </FormLabel>
+                      </FormItem>
+                      <FormItem className="flex items-center space-x-3 space-y-0">
+                        <FormControl>
+                          <RadioGroupItem value="evening" />
+                        </FormControl>
+                        <FormLabel className="font-normal">
+                          Evening
+                        </FormLabel>
+                      </FormItem>
+                      <FormItem className="flex items-center space-x-3 space-y-0">
+                        <FormControl>
+                          <RadioGroupItem value="multiple" />
+                        </FormControl>
+                        <FormLabel className="font-normal">
+                          Multiple times per day
+                        </FormLabel>
+                      </FormItem>
+                    </RadioGroup>
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
