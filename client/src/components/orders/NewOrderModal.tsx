@@ -71,19 +71,22 @@ const NewOrderModal = ({ isOpen, onClose }: NewOrderModalProps) => {
         throw new Error("Selected medication not found");
       }
       
+      const totalAmount = parseFloat(selectedMedication.price.toString()) * data.medication.quantity;
+      
       const orderData = {
         order: {
           customerId: data.customerId,
-          totalAmount: (parseFloat(selectedMedication.price.toString()) * data.medication.quantity).toString(),
+          totalAmount: totalAmount,
           status: "pending",
-          prescription: data.prescription,
-          notes: data.notes,
+          orderNumber: `ORD-${Math.floor(Math.random() * 10000)}`,
+          notes: data.notes || null,
         },
-        orderItems: [
+        items: [
           {
             medicationId: data.medication.id,
             quantity: data.medication.quantity,
-            price: (parseFloat(selectedMedication.price.toString()) * data.medication.quantity).toString(),
+            unitPrice: selectedMedication.price,
+            total: totalAmount
           },
         ],
       };

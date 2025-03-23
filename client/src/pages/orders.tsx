@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Search, Plus, Filter } from 'lucide-react';
 import OrderTable from '@/components/orders/order-table';
 import OrderForm from '@/components/orders/order-form';
+import NewOrderModal from '@/components/orders/NewOrderModal';
 import { useToast } from '@/hooks/use-toast';
 
 export default function Orders() {
@@ -17,6 +18,7 @@ export default function Orders() {
   const [searchQuery, setSearchQuery] = useState('');
   const [showAddForm, setShowAddForm] = useState(location.includes('?new=true'));
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [showNewOrderModal, setShowNewOrderModal] = useState(false);
 
   // Get all orders
   const { data: orders, isLoading, error } = useQuery<Order[]>({
@@ -42,8 +44,11 @@ export default function Orders() {
   };
 
   const handleAddClick = () => {
-    setSelectedOrder(null);
-    setShowAddForm(true);
+    setShowNewOrderModal(true);
+  };
+
+  const handleNewOrderModalClose = () => {
+    setShowNewOrderModal(false);
   };
 
   const handleFormClose = () => {
